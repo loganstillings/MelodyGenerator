@@ -15,6 +15,10 @@ app.use(
 );
 app.use(bp.json());
 
+app.get("/", function (req, res) {
+  res.sendFile("index.html");
+});
+
 app.listen(8000, function () {
   console.log("listening on 8000");
 });
