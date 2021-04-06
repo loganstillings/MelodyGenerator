@@ -9,10 +9,16 @@
   <script src="https://cdn.jsdelivr.net/npm/babel-regenerator-runtime@6.5.0/runtime.min.js"></script>
   <script src="https://cdn.rawgit.com/danigb/tonal/9b6b1663/dist/tonal.min.js"></script>
   <script src="app.js" defer></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abel" />
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/material-components-web@0.39.1/dist/material-components-web.min.css"
+  />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <div class="container">
   <div class="machine-bg">
+    <h3>Melody Generator</h3>
     <div class="player"></div>
     <div class="controls top-controls">
       <div>
@@ -40,19 +46,46 @@
       </div>
       <div>
         <div class="mdc-select">
-          <select
-            id="pattern-length"
-            class="mdc-select__native-control"
-            role="presentation"
-          >
+          <select id="pattern-length" role="presentation">
             <option>4</option>
             <option selected>8</option>
             <option>16</option>
             <option>32</option>
           </select>
-          <div class="mdc-select__bottom-line"></div>
         </div>
         Pattern length
+      </div>
+      <div>
+        <div class="mdc-select">
+          <select id="chord-select" role="presentation">
+            <option selected value="">(Auto-detect)</option>
+            <option>CM</option>
+            <option>Cm</option>
+            <option>DbM</option>
+            <option>Dbm</option>
+            <option>DM</option>
+            <option>Dm</option>
+            <option>EbM</option>
+            <option>Ebm</option>
+            <option>EM</option>
+            <option>Em</option>
+            <option>FM</option>
+            <option>Fm</option>
+            <option>GbM</option>
+            <option>Gbm</option>
+            <option>GM</option>
+            <option>Gm</option>
+            <option>AbM</option>
+            <option>Abm</option>
+            <option>AM</option>
+            <option>Am</option>
+            <option>BbM</option>
+            <option>Bbm</option>
+            <option>BM</option>
+            <option>Bm</option>
+          </select>
+        </div>
+        Chord
       </div>
       <div>
         <div class="mdc-switch">
@@ -108,40 +141,24 @@
         <div>
           MIDI input
           <div class="mdc-select">
-            <select
-              id="midi-inputs"
-              class="mdc-select__native-control"
-              role="presentation"
-            ></select>
+            <select id="midi-inputs" role="presentation"></select>
             <div class="mdc-select__bottom-line"></div>
           </div>
           Clock input
           <div class="mdc-select">
-            <select
-              id="midi-clock-inputs"
-              class="mdc-select__native-control"
-              role="presentation"
-            ></select>
+            <select id="midi-clock-inputs" role="presentation"></select>
             <div class="mdc-select__bottom-line"></div>
           </div>
         </div>
         <div>
           Output
           <div class="mdc-select">
-            <select
-              id="outputs"
-              class="mdc-select__native-control"
-              role="presentation"
-            ></select>
+            <select id="outputs" role="presentation"></select>
             <div class="mdc-select__bottom-line"></div>
           </div>
           Clock Output
           <div class="mdc-select">
-            <select
-              id="midi-clock-outputs"
-              class="mdc-select__native-control"
-              role="presentation"
-            ></select>
+            <select id="midi-clock-outputs" role="presentation"></select>
             <div class="mdc-select__bottom-line"></div>
           </div>
         </div>

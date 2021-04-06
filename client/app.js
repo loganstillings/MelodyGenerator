@@ -8,6 +8,7 @@ let Tone = mm.Player.tone;
 
 let temperature = 1.1;
 let patternLength = 8;
+let chordSelect = "";
 
 // Using the Improv RNN pretrained model from https://github.com/tensorflow/magenta/tree/master/magenta/models/improv_rnn
 let rnn = new mm.MusicRNN(
@@ -177,6 +178,9 @@ function startSequenceGenerator(seed) {
   let chord =
     _.first(chords) ||
     Tonal.Note.pc(Tonal.Note.fromMidi(_.first(seed).note)) + "M";
+  if (chordSelect) {
+    chord = chordSelect;
+  }
   let seedSeq = buildNoteSequence(seed);
   let generatedSequence = seqToTickArray(seedSeq);
   let playIntervalTime = Tone.Time("8n").toSeconds();
@@ -283,7 +287,7 @@ function animateMachine(keyEl) {
 
 builtInKeyboard.down((note) => {
   humanKeyDown(note.note);
-  hideUI();
+  // hideUI();
 });
 builtInKeyboard.up((note) => humanKeyUp(note.note));
 
@@ -395,7 +399,7 @@ WebMidi.enable((err) => {
     if (input) {
       input.addListener("noteon", 1, (e) => {
         humanKeyDown(e.note.number, e.velocity);
-        hideUI();
+        // hideUI();
       });
       input.addListener("controlchange", 1, (e) => {
         if (e.controller.number === TEMPO_MIDI_CONTROLLER) {
@@ -622,7 +626,9 @@ tempSlider.listen("MDCSlider:change", () => (temperature = tempSlider.value));
 document
   .querySelector("#pattern-length")
   .addEventListener("change", (evt) => (patternLength = evt.target.value));
-
+document
+  .querySelector("#chord-select")
+  .addEventListener("change", (evt) => (chordSelect = evt.target.value));
 // Pulse pattern switch
 
 let pulsePatternControl = new mdc.switchControl.MDCSwitch(
@@ -634,20 +640,20 @@ document
 
 // Controls hiding
 
-let container = document.querySelector(".container");
+// let container = document.querySelector(".container");
 
-function hideUI() {
-  container.classList.add("ui-hidden");
-}
-let scheduleHideUI = _.debounce(hideUI, 5000);
-container.addEventListener("mousemove", () => {
-  container.classList.remove("ui-hidden");
-  scheduleHideUI();
-});
-container.addEventListener("touchstart", () => {
-  container.classList.remove("ui-hidden");
-  scheduleHideUI();
-});
+// function hideUI() {
+//   container.classList.add("ui-hidden");
+// }
+// let scheduleHideUI = _.debounce(hideUI, 5000);
+// container.addEventListener("mousemove", () => {
+//   container.classList.remove("ui-hidden");
+//   scheduleHideUI();
+// });
+// container.addEventListener("touchstart", () => {
+//   container.classList.remove("ui-hidden");
+//   scheduleHideUI();
+// });
 
 // Startup
 

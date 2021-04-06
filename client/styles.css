@@ -67,9 +67,9 @@ a:visited {
   margin: 0 5px;
   padding-top: 5px;
 }
-.ui-hidden .controls {
+/* .ui-hidden .controls {
   opacity: 0;
-}
+} */
 .machine-bg .controls {
   margin-bottom: 125px;
 }
