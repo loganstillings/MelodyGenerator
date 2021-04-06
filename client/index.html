@@ -18,7 +18,9 @@
 </head>
 <div class="container">
   <div class="machine-bg">
-    <h3>Melody Generator</h3>
+    <h3 class="detected-chord">
+      Detected Chord: <span id="detected-chord-name"></span>
+    </h3>
     <div class="player"></div>
     <div class="controls top-controls">
       <div>
@@ -48,30 +50,30 @@
         <div class="mdc-select">
           <select id="chord-select" role="presentation">
             <option selected value="">(Auto-detect)</option>
-            <option>CM</option>
-            <option>Cm</option>
-            <option>DbM</option>
-            <option>Dbm</option>
-            <option>DM</option>
-            <option>Dm</option>
-            <option>EbM</option>
-            <option>Ebm</option>
-            <option>EM</option>
-            <option>Em</option>
-            <option>FM</option>
-            <option>Fm</option>
-            <option>GbM</option>
-            <option>Gbm</option>
-            <option>GM</option>
-            <option>Gm</option>
-            <option>AbM</option>
-            <option>Abm</option>
-            <option>AM</option>
-            <option>Am</option>
-            <option>BbM</option>
-            <option>Bbm</option>
-            <option>BM</option>
-            <option>Bm</option>
+            <option value="CM">C Major</option>
+            <option value="Cm">C minor</option>
+            <option value="DbM">Db Major</option>
+            <option value="Dbm">Db minor</option>
+            <option value="DM">D Major</option>
+            <option value="Dm">D minor</option>
+            <option value="EbM">Eb Major</option>
+            <option value="Ebm">Eb minor</option>
+            <option value="EM">E Major</option>
+            <option value="Em">E minor</option>
+            <option value="FM">F Major</option>
+            <option value="Fm">F minor</option>
+            <option value="GbM">Gb Major</option>
+            <option value="Gbm">Gb minor</option>
+            <option value="GM">G Major</option>
+            <option value="Gm">G minor</option>
+            <option value="AbM">Ab Major</option>
+            <option value="Abm">Ab minor</option>
+            <option value="AM">A Major</option>
+            <option value="Am">A minor</option>
+            <option value="BbM">Bb Major</option>
+            <option value="Bbm">Bb minor</option>
+            <option value="BM">B Major</option>
+            <option value="Bm">B minor</option>
           </select>
         </div>
         Chord
@@ -82,7 +84,7 @@
     <div class="player"></div>
     <div class="controls">
       <div class="midi-not-supported">
-        Press and hold a note or chord using the
+        Play and hold a melody or chord using the
         <a
           href="https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067"
           target="_blank"
@@ -93,7 +95,7 @@
         >.
       </div>
       <div class="midi-supported-no-inputs" style="display: none">
-        Press and hold a note or chord using a MIDI controller or
+        Play and hold a melody or chord using a MIDI controller or
         <a
           href="https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067"
           target="_blank"
@@ -101,39 +103,21 @@
         >.
       </div>
       <div class="midi-supported-with-inputs" style="display: none">
-        <p>
-          Press and hold a note or chord using
-          <a
-            href="https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067"
-            target="_blank"
-            >computer keyboard</a
-          >
-          or choose a MIDI controller from below.
-        </p>
-        <div>
-          MIDI input
-          <div class="mdc-select">
-            <select id="midi-inputs" role="presentation"></select>
-            <div class="mdc-select__bottom-line"></div>
-          </div>
-          Clock input
-          <div class="mdc-select">
-            <select id="midi-clock-inputs" role="presentation"></select>
-            <div class="mdc-select__bottom-line"></div>
-          </div>
+        Play and hold a melody or chord using MIDI controller
+        <div class="mdc-select mdc-select--theme-light">
+          <select
+            id="midi-inputs"
+            class="mdc-select__surface"
+            role="presentation"
+          ></select>
+          <div class="mdc-select__bottom-line"></div>
         </div>
-        <div>
-          Output
-          <div class="mdc-select">
-            <select id="outputs" role="presentation"></select>
-            <div class="mdc-select__bottom-line"></div>
-          </div>
-          Clock Output
-          <div class="mdc-select">
-            <select id="midi-clock-outputs" role="presentation"></select>
-            <div class="mdc-select__bottom-line"></div>
-          </div>
-        </div>
+        or
+        <a
+          href="https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067"
+          target="_blank"
+          >computer keyboard</a
+        >.
       </div>
       <p>
         A
@@ -142,7 +126,8 @@
           target="_blank"
           >neural network</a
         >
-        will arpeggiate around your chord.
+        will pick up where you left off and it'll keep playing for as long as
+        you hold the keys down.
       </p>
       <p>
         Using the

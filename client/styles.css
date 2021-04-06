@@ -67,9 +67,9 @@ a:visited {
   margin: 0 5px;
   padding-top: 5px;
 }
-/* .ui-hidden .controls {
+.ui-hidden {
   opacity: 0;
-} */
+}
 .machine-bg .controls {
   margin-bottom: 125px;
 }
@@ -106,7 +106,7 @@ a:visited {
   height: 100%;
 }
 .machine-bg .player .key {
-  background-color: #e91e63;
+  background-color: #33cc33;
   opacity: 0;
 }
 .human-bg .player .key.down {

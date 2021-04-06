@@ -1,13 +1,8 @@
 const MIN_NOTE = 48;
 const MAX_NOTE = 84;
-const DEFAULT_BPM = 120;
-const MAX_MIDI_BPM = 240;
-const TEMPO_MIDI_CONTROLLER = 20; // Control changes for tempo for this controller id
-
 let Tone = mm.Player.tone;
 
 let temperature = 1.1;
-let patternLength = 8;
 let chordSelect = "";
 
 // Using the Improv RNN pretrained model from https://github.com/tensorflow/magenta/tree/master/magenta/models/improv_rnn
@@ -58,36 +53,7 @@ let synthConfig = {
   oscillator: { type: "fattriangle" },
   envelope: { attack: 3, sustain: 1, release: 1 },
 };
-let pulsePattern = true;
 let synthsPlaying = {};
-let currentPlayFn;
-let tick = 0;
-
-let outputs = {
-  internal: {
-    play: (note, velocity, time, hold = false) => {
-      let freq = Tone.Frequency(note, "midi");
-      if (hold) {
-        if (!synthsPlaying[note]) {
-          let synth = new Tone.Synth(synthConfig).connect(synthFilter);
-          synthsPlaying[note] = synth;
-          synth.triggerAttack(freq, time, velocity);
-        }
-      } else {
-        sampler.triggerAttack(freq, time);
-      }
-    },
-    stop: (note, time) => {
-      if (synthsPlaying[note]) {
-        let synth = synthsPlaying[note];
-        synth.triggerRelease(time);
-        setTimeout(() => synth.dispose(), 2000);
-        synthsPlaying[note] = null;
-      }
-    },
-  },
-};
-let activeOutput = "internal";
 
 function isAccidental(note) {
   let pc = note % 12;
@@ -122,6 +88,35 @@ function buildKeyboard(container) {
   });
 }
 
+function getSeedIntervals(seed) {
+  let intervals = [];
+  for (let i = 0; i < seed.length - 1; i++) {
+    let rawInterval = seed[i + 1].time - seed[i].time;
+    let measure = _.minBy(["8n", "4n"], (subdiv) =>
+      Math.abs(rawInterval - Tone.Time(subdiv).toSeconds())
+    );
+    intervals.push(Tone.Time(measure).toSeconds());
+  }
+  return intervals;
+}
+
+function getSequenceLaunchWaitTime(seed) {
+  if (seed.length <= 1) {
+    return 1;
+  }
+  let intervals = getSeedIntervals(seed);
+  let maxInterval = _.max(intervals);
+  return maxInterval * 2;
+}
+
+function getSequencePlayIntervalTime(seed) {
+  if (seed.length <= 1) {
+    return Tone.Time("8n").toSeconds();
+  }
+  let intervals = getSeedIntervals(seed).sort();
+  return _.first(intervals);
+}
+
 function detectChord(notes) {
   notes = notes.map((n) => Tonal.Note.pc(Tonal.Note.fromMidi(n.note))).sort();
   return Tonal.PcSet.modes(notes)
@@ -134,142 +129,147 @@ function detectChord(notes) {
 }
 
 function buildNoteSequence(seed) {
-  let step = 0;
-  let delayProb = pulsePattern ? 0 : 0.3;
-  let notes = seed.map((n) => {
-    let dur = 1 + (Math.random() < delayProb ? 1 : 0);
-    let note = {
-      pitch: n.note,
-      quantizedStartStep: step,
-      quantizedEndStep: step + dur,
-    };
-    step += dur;
-    return note;
-  });
-  return {
-    totalQuantizedSteps: _.last(notes).quantizedEndStep,
-    quantizationInfo: {
-      stepsPerQuarter: 1,
+  return mm.sequences.quantizeNoteSequence(
+    {
+      ticksPerQuarter: 220,
+      totalTime: seed.length * 0.5,
+      quantizationInfo: {
+        stepsPerQuarter: 1,
+      },
+      timeSignatures: [
+        {
+          time: 0,
+          numerator: 4,
+          denominator: 4,
+        },
+      ],
+      tempos: [
+        {
+          time: 0,
+          qpm: 120,
+        },
+      ],
+      notes: seed.map((n, idx) => ({
+        pitch: n.note,
+        startTime: idx * 0.5,
+        endTime: (idx + 1) * 0.5,
+      })),
     },
-    notes,
-  };
-}
-
-function seqToTickArray(seq) {
-  return _.flatMap(seq.notes, (n) =>
-    [n.pitch].concat(
-      pulsePattern
-        ? []
-        : _.times(n.quantizedEndStep - n.quantizedStartStep - 1, () => null)
-    )
+    1
   );
-}
-
-function doTick(time = Tone.now() - Tone.context.lookAhead) {
-  applyHumanKeyChanges(time);
-  if (currentPlayFn) currentPlayFn(time);
 }
 
 function startSequenceGenerator(seed) {
   let running = true,
-    thisPatternLength = patternLength;
+    lastGenerationTask = Promise.resolve();
 
   let chords = detectChord(seed);
   let chord =
     _.first(chords) ||
     Tonal.Note.pc(Tonal.Note.fromMidi(_.first(seed).note)) + "M";
   if (chordSelect) {
+    hideDetectedChord();
     chord = chordSelect;
+  } else {
+    showDetectedChord(chord);
   }
   let seedSeq = buildNoteSequence(seed);
-  let generatedSequence = seqToTickArray(seedSeq);
-  let playIntervalTime = Tone.Time("8n").toSeconds();
+  let generatedSequence =
+    Math.random() < 0.7 ? _.clone(seedSeq.notes.map((n) => n.pitch)) : [];
+  let launchWaitTime = getSequenceLaunchWaitTime(seed);
+  let playIntervalTime = getSequencePlayIntervalTime(seed);
   let generationIntervalTime = playIntervalTime / 2;
   function generateNext() {
     if (!running) return;
-    if (generatedSequence.length < thisPatternLength) {
-      rnn.continueSequence(seedSeq, 20, temperature, [chord]).then((genSeq) => {
-        generatedSequence = generatedSequence.concat(seqToTickArray(genSeq));
-        setTimeout(generateNext, generationIntervalTime * 1000);
-      });
+    if (generatedSequence.length < 10) {
+      lastGenerationTask = rnn
+        .continueSequence(seedSeq, 20, temperature, [chord])
+        .then((genSeq) => {
+          generatedSequence = generatedSequence.concat(
+            genSeq.notes.map((n) => n.pitch)
+          );
+          setTimeout(generateNext, generationIntervalTime * 1000);
+        });
+    } else {
+      setTimeout(generateNext, generationIntervalTime * 1000);
     }
   }
 
-  tick = 0;
-  currentPlayFn = function playNext(time) {
-    let tickInSeq = tick % thisPatternLength;
-    if (tickInSeq < generatedSequence.length) {
-      let note = generatedSequence[tickInSeq];
-      if (note) machineKeyDown(note, time);
+  function consumeNext(time) {
+    if (generatedSequence.length) {
+      let note = generatedSequence.shift();
+      if (note > 0) {
+        machineKeyDown(note, time);
+      }
     }
-    tick++;
-  };
+  }
 
-  setTimeout(generateNext, 0);
+  setTimeout(generateNext, launchWaitTime * 1000);
+  let consumerId = Tone.Transport.scheduleRepeat(
+    consumeNext,
+    playIntervalTime,
+    Tone.Transport.seconds + launchWaitTime
+  );
 
   return () => {
     running = false;
-    currentPlayFn = null;
+    Tone.Transport.clear(consumerId);
   };
 }
 
-function updateChord({ add = [], remove = [] }) {
-  for (let note of add) {
-    currentSeed.push({ note, time: Tone.now() });
+function updateChord({ add = null, remove = null }) {
+  if (add) {
+    currentSeed.push({ note: add, time: Tone.now() });
   }
-  for (let note of remove) {
-    _.remove(currentSeed, { note });
+  if (remove && _.some(currentSeed, { note: remove })) {
+    _.remove(currentSeed, { note: remove });
   }
 
   if (stopCurrentSequenceGenerator) {
     stopCurrentSequenceGenerator();
     stopCurrentSequenceGenerator = null;
   }
-  if (currentSeed.length) {
+  if (currentSeed.length && !stopCurrentSequenceGenerator) {
+    resetState = true;
     stopCurrentSequenceGenerator = startSequenceGenerator(
       _.cloneDeep(currentSeed)
     );
   }
 }
 
-let humanKeyAdds = [],
-  humanKeyRemovals = [];
 function humanKeyDown(note, velocity = 0.7) {
   if (note < MIN_NOTE || note > MAX_NOTE) return;
-  humanKeyAdds.push({ note, velocity });
+  let freq = Tone.Frequency(note, "midi");
+  let synth = new Tone.Synth(synthConfig).connect(synthFilter);
+  synthsPlaying[note] = synth;
+  synth.triggerAttack(freq, Tone.now(), velocity);
+  sampler.triggerAttack(freq);
+  updateChord({ add: note });
+  humanPlayer[note - MIN_NOTE].classList.add("down");
+  animatePlay(onScreenKeyboard[note - MIN_NOTE], note, true);
 }
+
 function humanKeyUp(note) {
   if (note < MIN_NOTE || note > MAX_NOTE) return;
-  humanKeyRemovals.push({ note });
-}
-function applyHumanKeyChanges(time = Tone.now()) {
-  if (humanKeyAdds.length == 0 && humanKeyRemovals.length == 0) return;
-  for (let { note, velocity } of humanKeyAdds) {
-    outputs[activeOutput].play(note, velocity, time, true);
-    humanPlayer[note - MIN_NOTE].classList.add("down");
-    animatePlay(onScreenKeyboard[note - MIN_NOTE], note, true);
+  if (synthsPlaying[note]) {
+    let synth = synthsPlaying[note];
+    synth.triggerRelease();
+    setTimeout(() => synth.dispose(), 2000);
+    synthsPlaying[note] = null;
   }
-  for (let { note } of humanKeyRemovals) {
-    outputs[activeOutput].stop(note, time);
-    humanPlayer[note - MIN_NOTE].classList.remove("down");
-  }
-  updateChord({
-    add: humanKeyAdds.map((n) => n.note),
-    remove: humanKeyRemovals.map((n) => n.note),
-  });
-  humanKeyAdds.length = 0;
-  humanKeyRemovals.length = 0;
+  updateChord({ remove: note });
+  humanPlayer[note - MIN_NOTE].classList.remove("down");
 }
 
 function machineKeyDown(note, time) {
   if (note < MIN_NOTE || note > MAX_NOTE) return;
-  outputs[activeOutput].play(note, 0.7, time);
+  sampler.triggerAttack(Tone.Frequency(note, "midi"));
   animatePlay(onScreenKeyboard[note - MIN_NOTE], note, false);
   animateMachine(machinePlayer[note - MIN_NOTE]);
 }
 
 function animatePlay(keyEl, note, isHuman) {
-  let sourceColor = isHuman ? "#1E88E5" : "#E91E63";
+  let sourceColor = isHuman ? "#1E88E5" : "#33cc33";
   let targetColor = isAccidental(note) ? "black" : "white";
   keyEl.animate(
     [{ backgroundColor: sourceColor }, { backgroundColor: targetColor }],
@@ -302,17 +302,8 @@ WebMidi.enable((err) => {
 
   let withInputsMsg = document.querySelector(".midi-supported-with-inputs");
   let noInputsMsg = document.querySelector(".midi-supported-no-inputs");
-  let inputSelector = document.querySelector("#midi-inputs");
-  let outputSelector = document.querySelector("#outputs");
-  let clockInputSelector = document.querySelector("#midi-clock-inputs");
-  let clockOutputSelector = document.querySelector("#midi-clock-outputs");
-  let activeInput,
-    activeClockInputId,
-    activeClockOutputId,
-    transportTickerId,
-    clockOutputTickerId,
-    midiTickCount,
-    lastBeatAt;
+  let selector = document.querySelector("#midi-inputs");
+  let activeInput;
 
   function onInputsChange() {
     if (WebMidi.inputs.length === 0) {
@@ -322,73 +313,17 @@ WebMidi.enable((err) => {
     } else {
       noInputsMsg.style.display = "none";
       withInputsMsg.style.display = "block";
-      while (inputSelector.firstChild) {
-        inputSelector.firstChild.remove();
+      while (selector.firstChild) {
+        selector.firstChild.remove();
       }
       for (let input of WebMidi.inputs) {
         let option = document.createElement("option");
         option.value = input.id;
         option.innerText = input.name;
-        inputSelector.appendChild(option);
+        selector.appendChild(option);
       }
       onActiveInputChange(WebMidi.inputs[0].id);
     }
-  }
-
-  function onOutputsChange() {
-    while (outputSelector.firstChild) {
-      outputSelector.firstChild.remove();
-    }
-    let internalOption = document.createElement("option");
-    internalOption.value = "internal";
-    internalOption.innerText = "Internal synth";
-    outputSelector.appendChild(internalOption);
-    for (let output of WebMidi.outputs) {
-      let option = document.createElement("option");
-      option.value = output.id;
-      option.innerText = output.name;
-      outputSelector.appendChild(option);
-    }
-    onActiveOutputChange("internal");
-  }
-
-  function onClockInputsChange() {
-    if (WebMidi.inputs.length === 0) {
-      onActiveClockInputChange("none");
-    } else {
-      while (clockInputSelector.firstChild) {
-        clockInputSelector.firstChild.remove();
-      }
-      let option = document.createElement("option");
-      option.value = "none";
-      option.innerText = "None (internal clock)";
-      clockInputSelector.appendChild(option);
-
-      for (let input of WebMidi.inputs) {
-        option = document.createElement("option");
-        option.value = input.id;
-        option.innerText = input.name;
-        clockInputSelector.appendChild(option);
-      }
-      onActiveClockInputChange("none");
-    }
-  }
-
-  function onClockOutputsChange() {
-    while (clockOutputSelector.firstChild) {
-      clockOutputSelector.firstChild.remove();
-    }
-    let noneOption = document.createElement("option");
-    noneOption.value = "none";
-    noneOption.innerText = "Not sending";
-    clockOutputSelector.appendChild(noneOption);
-    for (let output of WebMidi.outputs) {
-      let option = document.createElement("option");
-      option.value = output.id;
-      option.innerText = output.name;
-      clockOutputSelector.appendChild(option);
-    }
-    onActiveClockOutputChange("none");
   }
 
   function onActiveInputChange(id) {
@@ -396,173 +331,22 @@ WebMidi.enable((err) => {
       activeInput.removeListener();
     }
     let input = WebMidi.getInputById(id);
-    if (input) {
-      input.addListener("noteon", 1, (e) => {
-        humanKeyDown(e.note.number, e.velocity);
-        // hideUI();
-      });
-      input.addListener("controlchange", 1, (e) => {
-        if (e.controller.number === TEMPO_MIDI_CONTROLLER) {
-          Tone.Transport.bpm.value = (e.value / 128) * MAX_MIDI_BPM;
-          echo.delayTime.value = Tone.Time("8n.").toSeconds();
-        }
-      });
-      input.addListener("noteoff", 1, (e) => humanKeyUp(e.note.number));
-      for (let option of Array.from(inputSelector.children)) {
-        option.selected = option.value === id;
-      }
-      activeInput = input;
-    }
-  }
-
-  function onActiveOutputChange(id) {
-    if (activeOutput !== "internal") {
-      outputs[activeOutput] = null;
-    }
-    activeOutput = id;
-    if (activeOutput !== "internal") {
-      let output = WebMidi.getOutputById(id);
-      outputs[id] = {
-        play: (note, velocity = 1, time, hold = false) => {
-          if (!hold) {
-            let delay = (time - Tone.now()) * 1000;
-            let duration = Tone.Time("16n").toMilliseconds();
-            output.playNote(note, "all", {
-              time: delay > 0 ? `+${delay}` : WebMidi.now,
-              velocity,
-              duration,
-            });
-          }
-        },
-        stop: (note, time) => {
-          let delay = (time - Tone.now()) * 1000;
-          output.stopNote(note, 2, {
-            time: delay > 0 ? `+${delay}` : WebMidi.now,
-          });
-        },
-      };
-    }
-    for (let option of Array.from(outputSelector.children)) {
+    input.addListener("noteon", "all", (e) => {
+      humanKeyDown(e.note.number, e.velocity);
+      // hideUI();
+    });
+    input.addListener("noteoff", "all", (e) => humanKeyUp(e.note.number));
+    for (let option of Array.from(selector.children)) {
       option.selected = option.value === id;
     }
-  }
-
-  function startClockOutput() {
-    let output = WebMidi.getOutputById(activeClockOutputId);
-    clockOutputTickerId = Tone.Transport.scheduleRepeat((time) => {
-      let startDelay = time - Tone.context.currentTime;
-      let quarter = Tone.Time("4n").toSeconds();
-      for (let i = 0; i < 24; i++) {
-        let tickDelay = startDelay + (quarter / 24) * i;
-        output.sendClock({ time: `+${tickDelay * 1000}` });
-      }
-    }, "4n");
-  }
-
-  function stopClockOutput() {
-    Tone.Transport.clear(clockOutputTickerId);
-  }
-
-  function onActiveClockOutputChange(id) {
-    if (activeClockOutputId !== "none") {
-      stopClockOutput();
-    }
-    activeClockOutputId = id;
-    if (activeClockOutputId !== "none") {
-      startClockOutput();
-    }
-    for (let option of Array.from(clockOutputSelector.children)) {
-      option.selected = option.value === id;
-    }
-  }
-
-  function incomingMidiClockStart() {
-    midiTickCount = 0;
-    tick = 0;
-  }
-
-  function incomingMidiClockStop() {
-    midiTickCount = 0;
-    applyHumanKeyChanges();
-  }
-
-  function incomingMidiClockTick(evt) {
-    if (midiTickCount % 24 === 0) {
-      if (lastBeatAt) {
-        let beatDur = evt.timestamp - lastBeatAt;
-        Tone.Transport.bpm.value = Math.round(60000 / beatDur);
-        // Not sure why this doesn't sync through the BPM automatically. But it doesn't.
-        echo.delayTime.value = Tone.Time("8n.").toSeconds();
-      }
-      lastBeatAt = evt.timestamp;
-    }
-    if (midiTickCount % 12 === 0) {
-      doTick();
-    }
-    midiTickCount++;
-  }
-
-  function onActiveClockInputChange(id) {
-    if (activeClockInputId === "none") {
-      Tone.Transport.clear(transportTickerId);
-      transportTickerId = null;
-    } else if (activeClockInputId) {
-      let input = WebMidi.getInputById(activeClockInputId);
-      input.removeListener("start", "all", incomingMidiClockStart);
-      input.removeListener("stop", "all", incomingMidiClockStop);
-      input.removeListener("clock", "all", incomingMidiClockTick);
-    }
-    activeClockInputId = id;
-    if (activeClockInputId === "none") {
-      transportTickerId = Tone.Transport.scheduleRepeat(doTick, "8n");
-      Tone.Transport.bpm.value = DEFAULT_BPM;
-      echo.delayTime.value = Tone.Time("8n.").toSeconds();
-    } else {
-      let input = WebMidi.getInputById(id);
-      input.addListener("start", "all", incomingMidiClockStart);
-      input.addListener("stop", "all", incomingMidiClockStop);
-      input.addListener("clock", "all", incomingMidiClockTick);
-      midiTickCount = 0;
-    }
-    for (let option of Array.from(clockInputSelector.children)) {
-      option.selected = option.value === id;
-    }
+    activeInput = input;
   }
 
   onInputsChange();
-  onOutputsChange();
-  onClockInputsChange();
-  onClockOutputsChange();
-
-  WebMidi.addListener(
-    "connected",
-    () => (
-      onInputsChange(),
-      onOutputsChange(),
-      onClockInputsChange(),
-      onClockOutputsChange()
-    )
-  );
-  WebMidi.addListener(
-    "disconnected",
-    () => (
-      onInputsChange(),
-      onOutputsChange(),
-      onClockInputsChange(),
-      onClockOutputsChange()
-    )
-  );
-  inputSelector.addEventListener("change", (evt) =>
+  WebMidi.addListener("connected", onInputsChange);
+  WebMidi.addListener("disconnected", onInputsChange);
+  selector.addEventListener("change", (evt) =>
     onActiveInputChange(evt.target.value)
-  );
-  outputSelector.addEventListener("change", (evt) =>
-    onActiveOutputChange(evt.target.value)
-  );
-  clockInputSelector.addEventListener("change", (evt) =>
-    onActiveClockInputChange(evt.target.value)
-  );
-  clockOutputSelector.addEventListener("change", (evt) =>
-    onActiveClockOutputChange(evt.target.value)
   );
 });
 
@@ -623,20 +407,15 @@ let tempSlider = new mdc.slider.MDCSlider(
   document.querySelector("#temperature")
 );
 tempSlider.listen("MDCSlider:change", () => (temperature = tempSlider.value));
-document
-  .querySelector("#pattern-length")
-  .addEventListener("change", (evt) => (patternLength = evt.target.value));
-document
-  .querySelector("#chord-select")
-  .addEventListener("change", (evt) => (chordSelect = evt.target.value));
-// Pulse pattern switch
 
-let pulsePatternControl = new mdc.switchControl.MDCSwitch(
-  document.querySelector(".mdc-switch")
-);
-document
-  .querySelector("#pulse-switch")
-  .addEventListener("change", (evt) => (pulsePattern = evt.target.checked));
+// Chord select
+
+document.querySelector("#chord-select").addEventListener("change", (evt) => {
+  chordSelect = evt.target.value;
+  if (chordSelect) {
+    hideDetectedChord();
+  }
+});
 
 // Controls hiding
 
@@ -654,6 +433,20 @@ document
 //   container.classList.remove("ui-hidden");
 //   scheduleHideUI();
 // });
+
+// hide detected chord
+
+function hideDetectedChord() {
+  let detectedChordDiv = document.querySelector(".detected-chord");
+  detectedChordDiv.classList.add("ui-hidden");
+}
+
+function showDetectedChord(chordName) {
+  let detectedChordDiv = document.querySelector(".detected-chord");
+  detectedChordDiv.classList.remove("ui-hidden");
+  let detectedChordSpan = document.querySelector("#detected-chord-name");
+  detectedChordSpan.innerHTML = chordName;
+}
 
 // Startup
 
@@ -673,7 +466,6 @@ Promise.all([bufferLoadPromise, rnn.initialize()])
   .then(generateDummySequence)
   .then(() => {
     Tone.Transport.start();
-    Tone.Transport.bpm.value = DEFAULT_BPM;
     onScreenKeyboardContainer.classList.add("loaded");
     document.querySelector(".loading").remove();
   });
