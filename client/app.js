@@ -2,6 +2,73 @@ const MIN_NOTE = 48;
 const MAX_NOTE = 84;
 let Tone = mm.Player.tone;
 
+let instruments = [
+  {
+    urls: {
+      C3: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c3.wav",
+      "D#3": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds3.wav",
+      "F#3": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs3.wav",
+      A3: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a3.wav",
+      C4: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c4.wav",
+      "D#4": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds4.wav",
+      "F#4": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs4.wav",
+      A4: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a4.wav",
+      C5: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c5.wav",
+      "D#5": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds5.wav",
+      "F#5": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs5.wav",
+      A5: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a5.wav",
+    },
+    name: "synth",
+  },
+  {
+    urls: {
+      A1: "https://tonejs.github.io/audio/casio/A1.mp3",
+      A2: "https://tonejs.github.io/audio/casio/A2.mp3",
+    },
+    name: "casio",
+  },
+  {
+    urls: {
+      A1: "https://tonejs.github.io/audio/salamander/A1.mp3",
+      A2: "https://tonejs.github.io/audio/salamander/A2.mp3",
+      A3: "https://tonejs.github.io/audio/salamander/A3.mp3",
+      A4: "https://tonejs.github.io/audio/salamander/A4.mp3",
+      A5: "https://tonejs.github.io/audio/salamander/A5.mp3",
+      A6: "https://tonejs.github.io/audio/salamander/A6.mp3",
+    },
+    name: "salamander",
+  },
+  {
+    urls: {
+      C3:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-c3.mp3",
+      "D#3":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-ds3.mp3",
+      "F#3":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-fs3.mp3",
+      A3:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-a3.mp3",
+      C4:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-c4.mp3",
+      "D#4":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-ds4.mp3",
+      "F#4":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-fs4.mp3",
+      A4:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-a4.mp3",
+      C5:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-c5.mp3",
+      "D#5":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-ds5.mp3",
+      "F#5":
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-fs5.mp3",
+      A5:
+        "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/plastic-marimba-a5.mp3",
+    },
+    name: "marimba",
+  },
+];
+
 let temperature = 1.1;
 let selectedChords = [""];
 
@@ -20,20 +87,9 @@ let echo = new Tone.FeedbackDelay("8n.", 0.4).connect(
 );
 let lowPass = new Tone.Filter(5000).connect(echo).connect(reverb);
 new Tone.LFO("8m", 3000, 5000).connect(lowPass.frequency).start();
-let sampler = new Tone.Sampler({
-  C3: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c3.wav",
-  "D#3": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds3.wav",
-  "F#3": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs3.wav",
-  A3: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a3.wav",
-  C4: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c4.wav",
-  "D#4": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds4.wav",
-  "F#4": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs4.wav",
-  A4: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a4.wav",
-  C5: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-c5.wav",
-  "D#5": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-ds5.wav",
-  "F#5": "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-fs5.wav",
-  A5: "https://s3-us-west-2.amazonaws.com/s.cdpn.io/969699/s11-a5.wav",
-}).connect(lowPass);
+let sampler = new Tone.Sampler(
+  instruments.find((instrument) => instrument.name === "salamander").urls
+).connect(lowPass);
 sampler.release.value = 2;
 
 let builtInKeyboard = new AudioKeys({ rows: 2 });
@@ -414,6 +470,8 @@ document.querySelector("#chord-select").addEventListener("change", (evt) => {
   showSelectedChords(selectedChords);
 });
 
+// Display chords
+
 function showSelectedChords(chords) {
   let detectedChordSpan = document.querySelector("#detected-chord-name");
   detectedChordSpan.innerHTML = `Implemented Chord${
@@ -421,6 +479,14 @@ function showSelectedChords(chords) {
   }: ${chords.join(", ")}`;
 }
 
+// Change sampler
+function updateSampler(event) {
+  samplerName = event.target.value;
+  instrument = instruments.find(
+    (instrument) => instrument.name === samplerName
+  );
+  sampler = new Tone.Sampler(instrument.urls).connect(lowPass);
+}
 // Startup
 
 function generateDummySequence() {
