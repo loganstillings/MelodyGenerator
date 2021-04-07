@@ -3,7 +3,7 @@ const MAX_NOTE = 84;
 let Tone = mm.Player.tone;
 
 let temperature = 1.1;
-let chordSelect = "";
+let selectedChords = [""];
 
 // Using the Improv RNN pretrained model from https://github.com/tensorflow/magenta/tree/master/magenta/models/improv_rnn
 let rnn = new mm.MusicRNN(
@@ -167,12 +167,12 @@ function startSequenceGenerator(seed) {
   let chord =
     _.first(chords) ||
     Tonal.Note.pc(Tonal.Note.fromMidi(_.first(seed).note)) + "M";
-  if (chordSelect) {
-    hideDetectedChord();
-    chord = chordSelect;
+  if (selectedChords && selectedChords[0]) {
+    chord = selectedChords;
   } else {
-    showDetectedChord(chord);
+    chord = [chord];
   }
+  showSelectedChords(chord);
   let seedSeq = buildNoteSequence(seed);
   let generatedSequence =
     Math.random() < 0.7 ? _.clone(seedSeq.notes.map((n) => n.pitch)) : [];
@@ -183,7 +183,7 @@ function startSequenceGenerator(seed) {
     if (!running) return;
     if (generatedSequence.length < 10) {
       lastGenerationTask = rnn
-        .continueSequence(seedSeq, 20, temperature, [chord])
+        .continueSequence(seedSeq, 20, temperature, chord)
         .then((genSeq) => {
           generatedSequence = generatedSequence.concat(
             genSeq.notes.map((n) => n.pitch)
@@ -287,7 +287,6 @@ function animateMachine(keyEl) {
 
 builtInKeyboard.down((note) => {
   humanKeyDown(note.note);
-  // hideUI();
 });
 builtInKeyboard.up((note) => humanKeyUp(note.note));
 
@@ -333,7 +332,6 @@ WebMidi.enable((err) => {
     let input = WebMidi.getInputById(id);
     input.addListener("noteon", "all", (e) => {
       humanKeyDown(e.note.number, e.velocity);
-      // hideUI();
     });
     input.addListener("noteoff", "all", (e) => humanKeyUp(e.note.number));
     for (let option of Array.from(selector.children)) {
@@ -411,41 +409,16 @@ tempSlider.listen("MDCSlider:change", () => (temperature = tempSlider.value));
 // Chord select
 
 document.querySelector("#chord-select").addEventListener("change", (evt) => {
-  chordSelect = evt.target.value;
-  if (chordSelect) {
-    hideDetectedChord();
-  }
+  let selectedOptions = Array.prototype.slice.call(evt.target.selectedOptions);
+  selectedChords = selectedOptions.map((option) => option.value);
+  showSelectedChords(selectedChords);
 });
 
-// Controls hiding
-
-// let container = document.querySelector(".container");
-
-// function hideUI() {
-//   container.classList.add("ui-hidden");
-// }
-// let scheduleHideUI = _.debounce(hideUI, 5000);
-// container.addEventListener("mousemove", () => {
-//   container.classList.remove("ui-hidden");
-//   scheduleHideUI();
-// });
-// container.addEventListener("touchstart", () => {
-//   container.classList.remove("ui-hidden");
-//   scheduleHideUI();
-// });
-
-// hide detected chord
-
-function hideDetectedChord() {
-  let detectedChordDiv = document.querySelector(".detected-chord");
-  detectedChordDiv.classList.add("ui-hidden");
-}
-
-function showDetectedChord(chordName) {
-  let detectedChordDiv = document.querySelector(".detected-chord");
-  detectedChordDiv.classList.remove("ui-hidden");
+function showSelectedChords(chords) {
   let detectedChordSpan = document.querySelector("#detected-chord-name");
-  detectedChordSpan.innerHTML = chordName;
+  detectedChordSpan.innerHTML = `Implemented Chord${
+    chords.length > 1 ? "s" : ""
+  }: ${chords.join(", ")}`;
 }
 
 // Startup
