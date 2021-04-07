@@ -18,7 +18,7 @@ Running these steps requires a previous installation of [Node.js](https://nodejs
 
 ## Usage
 
-The web application contains a piano layout for the purpose of melody continuation. Touching and holding keys on the piano will trigger the generated sequence. Notes can be played by clikcing with the mouse, using the computer keyboard (with [this layout](https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067)), or by using your own MIDI controller. User controlled notes will be highlighted in blue, and computer generated notes will be highlighted in green.
+The web application contains a piano layout for the purpose of melody continuation. Touching and holding keys on the piano will trigger the generated sequence. Notes can be played by clicking with the mouse, using the computer keyboard (with [this layout](https://camo.githubusercontent.com/29529110d639ed79a04752c036fe301fd15c961b/68747470733a2f2f7261772e6769746875622e636f6d2f6b796c65737465747a2f617564696f6b6579732f6d61737465722f696d616765732f617564696f6b6579732d6d617070696e672d726f7773322e6a7067)), or by using your own MIDI controller. User controlled notes will be highlighted in blue, and computer generated notes will be highlighted in green.
 
 ### Parameters
 
@@ -34,7 +34,7 @@ Included in the application are several parameters which the user can use to inf
 
 ## Dependencies
 
-This work makes use of several packages, which are directly imported in the browser. You do not need to do any additional steps to download the correct packages other than the initial inistallation of express using npm.
+This work makes use of several packages, which are directly imported in the browser. You do not need to do any additional steps to download the correct packages other than the initial installation of express using npm.
 The dependencies used are:
 
 - [Magenta.js](https://goo.gl/magenta/js) - used for integrating Magenta's [Improv_rnn](https://github.com/magenta/magenta/tree/master/magenta/models/improv_rnn) model with browser-ready javascript code
